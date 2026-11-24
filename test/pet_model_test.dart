@@ -50,6 +50,21 @@ void main() {
       expect(json['id_propietario'], '7');
       expect(json['foto'], 'uploads/mascotas/mimi.png');
       expect(json['imagen'], 'uploads/mascotas/mimi.png');
+      expect(json['activo'], true);
+    });
+
+    test('toJson serializes null image when photo is cleared', () {
+      const pet = Pet(
+        id: '10',
+        nombre: 'Mimi',
+        especie: 'Gato',
+        foto: null,
+      );
+
+      final json = pet.toJson();
+
+      expect(json['foto'], isNull);
+      expect(json['imagen'], isNull);
     });
   });
 

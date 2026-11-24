@@ -266,7 +266,10 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
                   _requestPermissionAndPickImage(ImageSource.gallery);
                 },
               ),
-              if (_foto.text.isNotEmpty || _pickedImage != null)
+              if (!_fotoDeleted &&
+                  (_pickedImage != null ||
+                      _foto.text.trim().isNotEmpty ||
+                      (_loadedPet?.foto != null && _loadedPet!.foto!.trim().isNotEmpty)))
                 ListTile(
                   leading: Container(
                     padding: const EdgeInsets.all(10),
@@ -518,9 +521,11 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
                                     ),
                                   );
                                 }
-                                final previewUrl = _foto.text.trim().isNotEmpty
-                                    ? Pet(id: '', nombre: '', especie: _especie, foto: _foto.text.trim()).fullImageUrl
-                                    : _loadedPet?.fullImageUrl;
+                                final previewUrl = _fotoDeleted
+                                    ? null
+                                    : (_foto.text.trim().isNotEmpty
+                                        ? Pet(id: '', nombre: '', especie: _especie, foto: _foto.text.trim()).fullImageUrl
+                                        : _loadedPet?.fullImageUrl);
                                 if (previewUrl != null && previewUrl.isNotEmpty) {
                                   return ClipRRect(
                                     borderRadius: BorderRadius.circular(18),

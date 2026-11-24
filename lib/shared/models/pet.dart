@@ -90,8 +90,8 @@ class Pet {
         if (edad != null) 'edad': edad,
         if (fechaNacimiento != null) 'fecha_nacimiento': fechaNacimiento,
         if (peso != null) 'peso': peso,
-        if (foto != null && foto!.isNotEmpty) 'foto': foto,
-        if (foto != null && foto!.isNotEmpty) 'imagen': foto,
+        'foto': (foto != null && foto!.isNotEmpty) ? foto : null,
+        'imagen': (foto != null && foto!.isNotEmpty) ? foto : null,
         if (idPropietario != null && idPropietario!.isNotEmpty) 'id_propietario': idPropietario,
         'activo': activo,
       };

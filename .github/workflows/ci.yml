@@ -91,6 +91,12 @@ jobs:
             echo "✓ .env file is safely ignored."
           fi
 
+      - name: Prepare environment configuration
+        run: |
+          if [ ! -f .env ]; then
+            cp .env.example .env 2>/dev/null || touch .env
+          fi
+
       - name: Check dependency lockfile consistency
         run: flutter pub get --dry-run
 

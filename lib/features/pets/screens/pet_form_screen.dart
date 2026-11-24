@@ -1,6 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../providers/pets_provider.dart';
 import '../../../core/auth/auth_provider.dart';
@@ -22,11 +25,17 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
   final _edad = TextEditingController();
   final _fechaNacimiento = TextEditingController();
   final _peso = TextEditingController();
+  final _foto = TextEditingController();
+  String? _selectedOwnerId;
   String _especie = 'Perro';
   String? _sexo;
   Pet? _loadedPet;
   bool _saving = false;
   bool _loading = false;
+  XFile? _pickedImage;
+  bool _uploadingImage = false;
+  String? _uploadError;
+  bool _fotoDeleted = false;
 
   static const _especies = ['Perro', 'Gato', 'Ave', 'Conejo', 'Hamster', 'Otro'];
 
@@ -44,6 +53,8 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
       final pet = await ref.read(petRepositoryProvider).get(widget.petId!);
       _loadedPet = pet;
       _nombre.text = pet.nombre;
+      _foto.text = pet.foto ?? '';
+      _selectedOwnerId = pet.idPropietario;
 
       final loadedEsp = pet.especie.trim();
       _especie = _especies.firstWhere(
@@ -88,7 +99,206 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
     _edad.dispose();
     _fechaNacimiento.dispose();
     _peso.dispose();
+    _foto.dispose();
     super.dispose();
+  }
+
+  Future<void> _requestPermissionAndPickImage(ImageSource source) async {
+    if (mounted) Navigator.of(context).pop();
+
+    try {
+      if (source == ImageSource.camera) {
+        final cameraStatus = await Permission.camera.request();
+        if (cameraStatus.isPermanentlyDenied) {
+          if (mounted) _showSettingsDialog('cámara');
+          return;
+        } else if (!cameraStatus.isGranted) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Se requiere permiso de cámara para tomar fotos.')),
+            );
+          }
+          return;
+        }
+      } else {
+        if (Platform.isAndroid) {
+          final photos = await Permission.photos.request();
+          if (!photos.isGranted) {
+            final storage = await Permission.storage.request();
+            if (storage.isPermanentlyDenied && photos.isPermanentlyDenied) {
+              if (mounted) _showSettingsDialog('archivos y fotos');
+              return;
+            }
+          }
+        }
+      }
+
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+
+      if (picked == null) return;
+
+      setState(() {
+        _pickedImage = picked;
+        _uploadingImage = true;
+        _uploadError = null;
+        _fotoDeleted = false;
+      });
+
+      // Subir inmediatamente para validación segura con ImageValidator
+      final repo = ref.read(petRepositoryProvider);
+      final uploadedPath = await repo.uploadImage(
+        File(picked.path),
+        petId: widget.petId,
+      );
+
+      if (mounted) {
+        setState(() {
+          _foto.text = uploadedPath;
+          _uploadingImage = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.verified_rounded, color: Colors.white, size: 20),
+                SizedBox(width: 8),
+                Text('Foto subida y verificada con éxito'),
+              ],
+            ),
+            backgroundColor: AppTheme.tertiary,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _uploadingImage = false;
+          _uploadError = 'Error al subir la imagen. Intenta de nuevo.';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al procesar la imagen: ${e.toString().replaceAll('Exception:', '')}'),
+            backgroundColor: AppTheme.rose,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        );
+      }
+    }
+  }
+
+  void _showSettingsDialog(String permissionName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Permiso de $permissionName requerido'),
+        content: Text(
+          'Para poder acceder a tus archivos o tomar fotos, debes otorgar el permiso de $permissionName en los ajustes de la aplicación.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              openAppSettings();
+            },
+            child: const Text('Abrir Ajustes'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showImageSourceActionSheet() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? AppTheme.cardDark : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: Text(
+                  'Foto de la mascota',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppTheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.photo_camera_rounded, color: AppTheme.primary),
+                ),
+                title: const Text('Tomar foto con la cámara', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('Usa la cámara de tu dispositivo'),
+                onTap: () => _requestPermissionAndPickImage(ImageSource.camera),
+              ),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0EA5E9).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.photo_library_rounded, color: Color(0xFF0EA5E9)),
+                ),
+                title: const Text('Elegir de la galería', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('Selecciona una imagen de tus archivos'),
+                onTap: () => _requestPermissionAndPickImage(ImageSource.gallery),
+              ),
+              if (_foto.text.isNotEmpty || _pickedImage != null)
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppTheme.rose.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.delete_outline_rounded, color: AppTheme.rose),
+                  ),
+                  title: const Text('Eliminar foto', style: TextStyle(color: AppTheme.rose, fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    setState(() {
+                      _pickedImage = null;
+                      _foto.clear();
+                      _fotoDeleted = true;
+                      _uploadError = null;
+                    });
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _selectFechaNacimiento() async {
@@ -116,7 +326,51 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
   Future<void> _submit(bool canEditAll) async {
     if (!_formKey.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
+
+    final auth = ref.read(authProvider);
+    final isCliente = (auth.role ?? 'CLIENTE').toUpperCase() == 'CLIENTE';
+
+    if (!isCliente && (_selectedOwnerId == null || _selectedOwnerId!.trim().isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Por favor selecciona un propietario para la mascota.'),
+          backgroundColor: AppTheme.rose,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      );
+      return;
+    }
+
     setState(() => _saving = true);
+
+    // Si hay una imagen seleccionada localmente que aún no se subió
+    if (_pickedImage != null && _foto.text.isEmpty && !_fotoDeleted) {
+      try {
+        final repo = ref.read(petRepositoryProvider);
+        final uploaded = await repo.uploadImage(File(_pickedImage!.path), petId: widget.petId);
+        _foto.text = uploaded;
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('No pudimos subir la foto seleccionada: $e'),
+              backgroundColor: AppTheme.rose,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          );
+        }
+        setState(() => _saving = false);
+        return;
+      }
+    }
+
+    final String? finalFoto = _fotoDeleted
+        ? null
+        : (_foto.text.trim().isNotEmpty
+            ? _foto.text.trim()
+            : (_isEdit ? _loadedPet?.foto : null));
 
     // Si es cliente editando, preserva los valores clínicos originales de la mascota
     final pet = Pet(
@@ -134,7 +388,8 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
           : _loadedPet?.fechaNacimiento,
       sexo: canEditAll ? _sexo : _loadedPet?.sexo,
       peso: canEditAll ? double.tryParse(_peso.text.trim()) : _loadedPet?.peso,
-      foto: _loadedPet?.foto,
+      foto: finalFoto,
+      idPropietario: !isCliente ? _selectedOwnerId : _loadedPet?.idPropietario,
     );
 
     try {
@@ -184,6 +439,7 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
     final auth = ref.watch(authProvider);
     final isCliente = (auth.role ?? 'CLIENTE').toUpperCase() == 'CLIENTE';
     final canEditAll = !_isEdit || !isCliente;
+    final ownersAsync = !isCliente ? ref.watch(petOwnersProvider) : null;
 
     final (emoji, colors) = PetSpeciesHelper.getStyle(_especie);
 
@@ -222,38 +478,113 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
                 ),
                 child: Row(
                   children: [
-                    Container(
-                      width: 64,
-                      height: 64,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: colors,
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: colors.first.withValues(alpha: 0.3),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
+                    GestureDetector(
+                      onTap: canEditAll && !_uploadingImage ? _showImageSourceActionSheet : null,
+                      child: Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: colors,
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                        ],
-                      ),
-                      child: _loadedPet?.fullImageUrl != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(18),
-                              child: Image.network(
-                                _loadedPet!.fullImageUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Center(
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: colors.first.withValues(alpha: 0.3),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            Positioned.fill(
+                              child: Builder(builder: (context) {
+                                if (_pickedImage != null) {
+                                  return ClipRRect(
+                                    borderRadius: BorderRadius.circular(18),
+                                    child: Image.file(
+                                      File(_pickedImage!.path),
+                                      fit: BoxFit.cover,
+                                    ),
+                                  );
+                                }
+                                final previewUrl = _foto.text.trim().isNotEmpty
+                                    ? Pet(id: '', nombre: '', especie: _especie, foto: _foto.text.trim()).fullImageUrl
+                                    : _loadedPet?.fullImageUrl;
+                                if (previewUrl != null && previewUrl.isNotEmpty) {
+                                  return ClipRRect(
+                                    borderRadius: BorderRadius.circular(18),
+                                    child: Image.network(
+                                      previewUrl,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Center(
+                                        child: Text(emoji, style: const TextStyle(fontSize: 30)),
+                                      ),
+                                      loadingBuilder: (context, child, progress) {
+                                        if (progress == null) return child;
+                                        return Center(
+                                          child: Text(emoji, style: const TextStyle(fontSize: 30)),
+                                        );
+                                      },
+                                    ),
+                                  );
+                                }
+                                return Center(
                                   child: Text(emoji, style: const TextStyle(fontSize: 30)),
+                                );
+                              }),
+                            ),
+                            if (_uploadingImage)
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(18),
+                                ),
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 22,
+                                    height: 22,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2.5,
+                                    ),
+                                  ),
                                 ),
                               ),
-                            )
-                          : Center(
-                              child: Text(emoji, style: const TextStyle(fontSize: 30)),
-                            ),
+                            if (canEditAll && !_uploadingImage)
+                              Positioned(
+                                right: -4,
+                                bottom: -4,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.primary,
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                                      width: 2,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.2),
+                                        blurRadius: 4,
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.camera_alt_rounded,
+                                    size: 12,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -317,6 +648,73 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
 
               const SizedBox(height: 24),
 
+              // Section: Propietario (solo para administradores/veterinarios)
+              if (!isCliente && ownersAsync != null) ...[
+                _SectionHeader(title: 'Propietario', icon: Icons.person_outline_rounded, isDark: isDark),
+                const SizedBox(height: 12),
+                ownersAsync.when(
+                  loading: () => const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Center(child: CircularProgressIndicator(strokeWidth: 2.5)),
+                  ),
+                  error: (err, _) => Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.rose.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.error_outline_rounded, color: AppTheme.rose, size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'No se pudo cargar la lista de propietarios',
+                            style: TextStyle(fontSize: 12, color: AppTheme.rose),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  data: (owners) {
+                    final validOwnerIds = owners.map((o) => o.id).toSet();
+                    final selectedValue = (_selectedOwnerId != null && validOwnerIds.contains(_selectedOwnerId))
+                        ? _selectedOwnerId
+                        : null;
+
+                    return DropdownButtonFormField<String>(
+                      value: selectedValue,
+                      isExpanded: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Asignar Propietario *',
+                        prefixIcon: Icon(Icons.person_rounded),
+                        hintText: 'Selecciona el dueño',
+                      ),
+                      items: owners.map((o) {
+                        return DropdownMenuItem<String>(
+                          value: o.id,
+                          child: Text(
+                            o.displayName,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: canEditAll
+                          ? (v) => setState(() => _selectedOwnerId = v)
+                          : null,
+                      validator: (v) {
+                        if (!isCliente && (v == null || v.isEmpty)) {
+                          return 'Debes seleccionar un propietario';
+                        }
+                        return null;
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: 24),
+              ],
+
               // Section 1: Identificación
               _SectionHeader(title: 'Identificación', icon: Icons.badge_outlined, isDark: isDark),
               const SizedBox(height: 12),
@@ -329,6 +727,126 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
                   prefixIcon: Icon(Icons.pets_outlined),
                 ),
                 validator: (v) => (v == null || v.trim().isEmpty) ? 'El nombre es obligatorio' : null,
+              ),
+              const SizedBox(height: 14),
+
+              // Image Picker Card (subida segura y permisos)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: _uploadError != null
+                        ? AppTheme.rose
+                        : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.photo_camera_back_outlined, size: 20, color: AppTheme.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Foto de la mascota',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white : const Color(0xFF0F172A),
+                          ),
+                        ),
+                        const Spacer(),
+                        if (_uploadingImage)
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        else if (_foto.text.isNotEmpty || _pickedImage != null)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF16A34A).withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'Cargada',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF16A34A),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Sube una imagen desde tu dispositivo. El servidor verifica formato seguro (JPEG/PNG/GIF), dimensiones y elimina metadatos por seguridad.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        height: 1.35,
+                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
+                      ),
+                    ),
+                    if (_uploadError != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _uploadError!,
+                        style: const TextStyle(fontSize: 12, color: AppTheme.rose),
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.camera_alt_rounded, size: 18),
+                            label: const Text('Cámara'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 11),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: canEditAll && !_uploadingImage
+                                ? () => _requestPermissionAndPickImage(ImageSource.camera)
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            icon: const Icon(Icons.photo_library_rounded, size: 18),
+                            label: const Text('Galería'),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(vertical: 11),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: canEditAll && !_uploadingImage
+                                ? () => _requestPermissionAndPickImage(ImageSource.gallery)
+                                : null,
+                          ),
+                        ),
+                        if ((_foto.text.isNotEmpty || _pickedImage != null) && canEditAll) ...[
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded, color: AppTheme.rose),
+                            tooltip: 'Eliminar foto',
+                            onPressed: () {
+                              setState(() {
+                                _pickedImage = null;
+                                _foto.clear();
+                                _fotoDeleted = true;
+                                _uploadError = null;
+                              });
+                            },
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 14),
 

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/api/api_client.dart';
 import '../data/pet_repository.dart';
 import '../../../shared/models/pet.dart';
+import '../../../shared/models/client_owner.dart';
 
 final petRepositoryProvider = Provider<PetRepository>((ref) {
   return PetRepository(ref.watch(dioProvider));
@@ -11,4 +12,9 @@ final petRepositoryProvider = Provider<PetRepository>((ref) {
 final petsListProvider = FutureProvider.autoDispose<List<Pet>>((ref) async {
   final repo = ref.watch(petRepositoryProvider);
   return repo.list();
+});
+
+final petOwnersProvider = FutureProvider.autoDispose<List<ClientOwner>>((ref) async {
+  final repo = ref.watch(petRepositoryProvider);
+  return repo.listOwners();
 });

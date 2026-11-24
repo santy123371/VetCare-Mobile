@@ -1,9 +1,11 @@
 # Miscellaneous
 *.class
 *.log
+*.cache
 *.pyc
 *.swp
 .DS_Store
+Thumbs.db
 .atom/
 .build/
 .buildlog/
@@ -12,18 +14,27 @@
 .swiftpm/
 migrate_working_dir/
 
-# IntelliJ related
+# IDEs & Editor configurations
 *.iml
 *.ipr
 *.iws
 .idea/
+.vscode/
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# AI, Agent tools, Code Analysis & Cache
+.atl/
+@.atl/
+.codegraph/
+.code-review-graph/
+.gga/
+.gga
+gga-rules.md
+.claude/
+.gemini/
+.cursor/
+.fleet/
 
-# Flutter/Dart/Pub related
+# Flutter / Dart / Pub
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
@@ -36,21 +47,30 @@ build/
 **/.gradle/
 /coverage/
 
-# Symbolication related
-app.*.symbols
+# Android specific
+**/android/local.properties
+**/android/.gradle/
+**/android/captures/
+**/android/app/debug
+**/android/app/profile
+**/android/app/release
+GeneratedPluginRegistrant.java
+.cxx/
 
-# Obfuscation related
+# Keystores & Signing Secrets
+key.properties
+**/*.keystore
+**/*.jks
+*.key
+
+# Symbolication & Obfuscation
+app.*.symbols
 app.*.map.json
 
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
-
-# Widget Preview related
+# Widget Preview
 .widget_preview/
 
-# Secrets
+# Environment & Secrets
 .env
 !.env.example
 

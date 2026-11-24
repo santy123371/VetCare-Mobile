@@ -30,6 +30,7 @@ class Pet {
   final double? peso;
   final String? foto;
   final String? idPropietario;
+  final String? nombrePropietario;
 
   const Pet({
     required this.id,
@@ -42,6 +43,7 @@ class Pet {
     this.peso,
     this.foto,
     this.idPropietario,
+    this.nombrePropietario,
   });
 
   String? get fullImageUrl {
@@ -50,8 +52,9 @@ class Pet {
     if (cleanPath.startsWith('http://') || cleanPath.startsWith('https://')) {
       return cleanPath;
     }
+    const envFromDefine = String.fromEnvironment('API_BASE_URL');
     final baseUrl = (dotenv.isInitialized ? dotenv.env['API_BASE_URL'] : null) ??
-        'https://lenders-med-surfaces-robbie.trycloudflare.com/veterinaria_php/api/v1';
+        (envFromDefine.isNotEmpty ? envFromDefine : 'http://10.0.2.2/veterinaria_php/api/v1');
     final hostUrl = baseUrl.replaceAll(RegExp(r'/api/v1/?$'), '');
     return '$hostUrl/${cleanPath.startsWith('/') ? cleanPath.substring(1) : cleanPath}';
   }
@@ -67,6 +70,7 @@ class Pet {
         peso: (j['peso'] is num) ? (j['peso'] as num).toDouble() : null,
         foto: j['foto']?.toString() ?? j['fot_mas']?.toString() ?? j['imagen']?.toString() ?? j['img_mas']?.toString(),
         idPropietario: (j['id_propietario'] ?? j['id_prop_mas'])?.toString(),
+        nombrePropietario: (j['nombre_propietario'] ?? j['propietario'] ?? j['nom_prop'])?.toString(),
       );
 
   Map<String, dynamic> toJson() => {
@@ -77,5 +81,8 @@ class Pet {
         if (edad != null) 'edad': edad,
         if (fechaNacimiento != null) 'fecha_nacimiento': fechaNacimiento,
         if (peso != null) 'peso': peso,
+        if (foto != null && foto!.isNotEmpty) 'foto': foto,
+        if (foto != null && foto!.isNotEmpty) 'imagen': foto,
+        if (idPropietario != null && idPropietario!.isNotEmpty) 'id_propietario': idPropietario,
       };
 }

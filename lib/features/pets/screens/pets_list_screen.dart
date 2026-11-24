@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/pets_provider.dart';
+import '../../../core/auth/auth_provider.dart';
 import '../../../shared/models/pet.dart';
 import '../../../core/theme/app_theme.dart';
 
@@ -26,6 +27,8 @@ class _PetsListScreenState extends ConsumerState<PetsListScreen> {
   @override
   Widget build(BuildContext context) {
     final petsAsync = ref.watch(petsListProvider);
+    final auth = ref.watch(authProvider);
+    final isCliente = (auth.role ?? 'CLIENTE').toUpperCase() == 'CLIENTE';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -174,7 +177,7 @@ class _PetsListScreenState extends ConsumerState<PetsListScreen> {
                       separatorBuilder: (_, __) => const SizedBox(height: 12),
                       itemBuilder: (context, i) {
                         final pet = filtered[i];
-                        return _PetCard(pet: pet, isDark: isDark);
+                        return _PetCard(pet: pet, isDark: isDark, isStaff: !isCliente);
                       },
                     ),
                   );
@@ -191,8 +194,13 @@ class _PetsListScreenState extends ConsumerState<PetsListScreen> {
 class _PetCard extends StatelessWidget {
   final Pet pet;
   final bool isDark;
+  final bool isStaff;
 
-  const _PetCard({required this.pet, required this.isDark});
+  const _PetCard({
+    required this.pet,
+    required this.isDark,
+    this.isStaff = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -293,6 +301,38 @@ class _PetCard extends StatelessWidget {
                       spacing: 6,
                       runSpacing: 4,
                       children: [
+                        if (isStaff && pet.nombrePropietario != null && pet.nombrePropietario!.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppTheme.primary.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.person_outline_rounded,
+                                  size: 13,
+                                  color: AppTheme.primary,
+                                ),
+                                const SizedBox(width: 4),
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 140),
+                                  child: Text(
+                                    pet.nombrePropietario!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.primary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         if (pet.sexo != null && pet.sexo!.trim().isNotEmpty)
                           Builder(builder: (context) {
                             final isMacho = pet.sexo!.toLowerCase().startsWith('m');

@@ -11,8 +11,14 @@ final secureStorageProvider = Provider<SecureStorage>((ref) => SecureStorage());
 
 final dioProvider = Provider<Dio>((ref) {
   final storage = ref.watch(secureStorageProvider);
-  final baseUrl = (dotenv.isInitialized ? dotenv.env['API_BASE_URL'] : null) ??
-      const String.fromEnvironment('API_BASE_URL', defaultValue: 'http://10.0.2.2/veterinaria_php/api/v1');
+  const envFromDefine = String.fromEnvironment('API_BASE_URL');
+  final envFromDotenv = dotenv.isInitialized ? dotenv.env['API_BASE_URL'] : null;
+
+  final baseUrl = (envFromDotenv != null && envFromDotenv.trim().isNotEmpty)
+      ? envFromDotenv.trim()
+      : (envFromDefine.trim().isNotEmpty
+          ? envFromDefine.trim()
+          : 'http://10.0.2.2/veterinaria_php/api/v1');
 
   final dio = Dio(BaseOptions(
     baseUrl: baseUrl,

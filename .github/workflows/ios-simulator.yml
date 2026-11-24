@@ -9,7 +9,7 @@ permissions:
 jobs:
   build-simulator:
     name: Build iOS Simulator Bundle
-    runs-on: macos-14
+    runs-on: macos-latest
     timeout-minutes: 25
 
     steps:

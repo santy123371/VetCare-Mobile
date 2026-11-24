@@ -31,6 +31,7 @@ class Pet {
   final String? foto;
   final String? idPropietario;
   final String? nombrePropietario;
+  final bool activo;
 
   const Pet({
     required this.id,
@@ -44,6 +45,7 @@ class Pet {
     this.foto,
     this.idPropietario,
     this.nombrePropietario,
+    this.activo = true,
   });
 
   String? get fullImageUrl {
@@ -71,6 +73,13 @@ class Pet {
         foto: j['foto']?.toString() ?? j['fot_mas']?.toString() ?? j['imagen']?.toString() ?? j['img_mas']?.toString(),
         idPropietario: (j['id_propietario'] ?? j['id_prop_mas'])?.toString(),
         nombrePropietario: (j['nombre_propietario'] ?? j['propietario'] ?? j['nom_prop'])?.toString(),
+        activo: j['activo'] == true ||
+            j['activo'] == 1 ||
+            j['act_mas'] == 1 ||
+            j['act_mas'] == true ||
+            j['act_mas'] == '1' ||
+            j['activo'] == '1' ||
+            (j['activo'] == null && j['act_mas'] == null),
       );
 
   Map<String, dynamic> toJson() => {
@@ -84,5 +93,6 @@ class Pet {
         if (foto != null && foto!.isNotEmpty) 'foto': foto,
         if (foto != null && foto!.isNotEmpty) 'imagen': foto,
         if (idPropietario != null && idPropietario!.isNotEmpty) 'id_propietario': idPropietario,
+        'activo': activo,
       };
 }

@@ -104,8 +104,6 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
   }
 
   Future<void> _requestPermissionAndPickImage(ImageSource source) async {
-    if (mounted) Navigator.of(context).pop();
-
     try {
       if (source == ImageSource.camera) {
         final cameraStatus = await Permission.camera.request();
@@ -119,17 +117,6 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
             );
           }
           return;
-        }
-      } else {
-        if (Platform.isAndroid) {
-          final photos = await Permission.photos.request();
-          if (!photos.isGranted) {
-            final storage = await Permission.storage.request();
-            if (storage.isPermanentlyDenied && photos.isPermanentlyDenied) {
-              if (mounted) _showSettingsDialog('archivos y fotos');
-              return;
-            }
-          }
         }
       }
 
@@ -258,7 +245,10 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
                 ),
                 title: const Text('Tomar foto con la cámara', style: TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: const Text('Usa la cámara de tu dispositivo'),
-                onTap: () => _requestPermissionAndPickImage(ImageSource.camera),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _requestPermissionAndPickImage(ImageSource.camera);
+                },
               ),
               ListTile(
                 leading: Container(
@@ -271,7 +261,10 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
                 ),
                 title: const Text('Elegir de la galería', style: TextStyle(fontWeight: FontWeight.w600)),
                 subtitle: const Text('Selecciona una imagen de tus archivos'),
-                onTap: () => _requestPermissionAndPickImage(ImageSource.gallery),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _requestPermissionAndPickImage(ImageSource.gallery);
+                },
               ),
               if (_foto.text.isNotEmpty || _pickedImage != null)
                 ListTile(
@@ -444,13 +437,26 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
     final (emoji, colors) = PetSpeciesHelper.getStyle(_especie);
 
     if (_loading) {
-      return Scaffold(
-        appBar: AppBar(title: Text(_isEdit ? 'Editar Mascota' : 'Nueva Mascota')),
-        body: const Center(child: CircularProgressIndicator()),
+      return PopScope(
+        canPop: false,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          context.go('/pets');
+        },
+        child: Scaffold(
+          appBar: AppBar(title: Text(_isEdit ? 'Editar Mascota' : 'Nueva Mascota')),
+          body: const Center(child: CircularProgressIndicator()),
+        ),
       );
     }
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        context.go('/pets');
+      },
+      child: Scaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
@@ -730,126 +736,6 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Image Picker Card (subida segura y permisos)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: _uploadError != null
-                        ? AppTheme.rose
-                        : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0)),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.photo_camera_back_outlined, size: 20, color: AppTheme.primary),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Foto de la mascota',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: isDark ? Colors.white : const Color(0xFF0F172A),
-                          ),
-                        ),
-                        const Spacer(),
-                        if (_uploadingImage)
-                          const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        else if (_foto.text.isNotEmpty || _pickedImage != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF16A34A).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              'Cargada',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Color(0xFF16A34A),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Sube una imagen desde tu dispositivo. El servidor verifica formato seguro (JPEG/PNG/GIF), dimensiones y elimina metadatos por seguridad.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.35,
-                        color: isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B),
-                      ),
-                    ),
-                    if (_uploadError != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        _uploadError!,
-                        style: const TextStyle(fontSize: 12, color: AppTheme.rose),
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            icon: const Icon(Icons.camera_alt_rounded, size: 18),
-                            label: const Text('Cámara'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 11),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            onPressed: canEditAll && !_uploadingImage
-                                ? () => _requestPermissionAndPickImage(ImageSource.camera)
-                                : null,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            icon: const Icon(Icons.photo_library_rounded, size: 18),
-                            label: const Text('Galería'),
-                            style: OutlinedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 11),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            onPressed: canEditAll && !_uploadingImage
-                                ? () => _requestPermissionAndPickImage(ImageSource.gallery)
-                                : null,
-                          ),
-                        ),
-                        if ((_foto.text.isNotEmpty || _pickedImage != null) && canEditAll) ...[
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline_rounded, color: AppTheme.rose),
-                            tooltip: 'Eliminar foto',
-                            onPressed: () {
-                              setState(() {
-                                _pickedImage = null;
-                                _foto.clear();
-                                _fotoDeleted = true;
-                                _uploadError = null;
-                              });
-                            },
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 14),
-
               DropdownButtonFormField<String>(
                 value: _especie,
                 decoration: InputDecoration(
@@ -1022,8 +908,9 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _SectionHeader extends StatelessWidget {

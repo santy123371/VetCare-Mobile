@@ -17,6 +17,7 @@ class PetsListScreen extends ConsumerStatefulWidget {
 class _PetsListScreenState extends ConsumerState<PetsListScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  bool _showInactive = false;
 
   @override
   void dispose() {
@@ -31,14 +32,20 @@ class _PetsListScreenState extends ConsumerState<PetsListScreen> {
     final isCliente = (auth.role ?? 'CLIENTE').toUpperCase() == 'CLIENTE';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-          onPressed: () => context.go('/dashboard'),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        context.go('/dashboard');
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+            onPressed: () => context.go('/dashboard'),
+          ),
+          title: const Text('Mascotas'),
         ),
-        title: const Text('Mascotas'),
-      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.go('/pets/new'),
         icon: const Icon(Icons.add_rounded),
@@ -49,7 +56,7 @@ class _PetsListScreenState extends ConsumerState<PetsListScreen> {
           children: [
             // Search Bar
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 10),
               child: TextField(
                 controller: _searchController,
                 onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
@@ -66,6 +73,37 @@ class _PetsListScreenState extends ConsumerState<PetsListScreen> {
                         )
                       : null,
                 ),
+              ),
+            ),
+
+            // Inactive Pets Toggle Filter
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+              child: Row(
+                children: [
+                  FilterChip(
+                    avatar: Icon(
+                      _showInactive ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                      size: 16,
+                      color: _showInactive
+                          ? AppTheme.primary
+                          : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B)),
+                    ),
+                    label: Text(
+                      _showInactive ? 'Mostrando inactivas' : 'Mostrar inactivas',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: _showInactive
+                            ? AppTheme.primary
+                            : (isDark ? Colors.white70 : const Color(0xFF475569)),
+                      ),
+                    ),
+                    selected: _showInactive,
+                    onSelected: (val) => setState(() => _showInactive = val),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                ],
               ),
             ),
 
@@ -107,6 +145,12 @@ class _PetsListScreenState extends ConsumerState<PetsListScreen> {
                 ),
                 data: (pets) {
                   final filtered = pets.where((p) {
+                    if (p.nombre == 'Mascota Eliminada' || p.nombre.startsWith('Mascota Eliminada')) {
+                      return false;
+                    }
+                    if (!_showInactive && !p.activo) {
+                      return false;
+                    }
                     if (_searchQuery.isEmpty) return true;
                     return p.nombre.toLowerCase().contains(_searchQuery) ||
                         p.especie.toLowerCase().contains(_searchQuery) ||
@@ -187,8 +231,9 @@ class _PetsListScreenState extends ConsumerState<PetsListScreen> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _PetCard extends StatelessWidget {
@@ -301,6 +346,29 @@ class _PetCard extends StatelessWidget {
                       spacing: 6,
                       runSpacing: 4,
                       children: [
+                        if (!pet.activo)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppTheme.rose.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.pause_circle_outline_rounded, size: 13, color: AppTheme.rose),
+                                SizedBox(width: 4),
+                                Text(
+                                  'Inactiva',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppTheme.rose,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         if (isStaff && pet.nombrePropietario != null && pet.nombrePropietario!.isNotEmpty)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

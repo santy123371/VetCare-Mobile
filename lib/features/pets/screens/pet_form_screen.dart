@@ -34,7 +34,6 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
   bool _loading = false;
   XFile? _pickedImage;
   bool _uploadingImage = false;
-  String? _uploadError;
   bool _fotoDeleted = false;
 
   static const _especies = ['Perro', 'Gato', 'Ave', 'Conejo', 'Hamster', 'Otro'];
@@ -133,7 +132,6 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
       setState(() {
         _pickedImage = picked;
         _uploadingImage = true;
-        _uploadError = null;
         _fotoDeleted = false;
       });
 
@@ -168,7 +166,6 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
       if (mounted) {
         setState(() {
           _uploadingImage = false;
-          _uploadError = 'Error al subir la imagen. Intenta de nuevo.';
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -286,7 +283,6 @@ class _PetFormScreenState extends ConsumerState<PetFormScreen> {
                       _pickedImage = null;
                       _foto.clear();
                       _fotoDeleted = true;
-                      _uploadError = null;
                     });
                   },
                 ),

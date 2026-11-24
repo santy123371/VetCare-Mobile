@@ -30,6 +30,12 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Prepare environment configuration
+        run: |
+          if [ ! -f .env ]; then
+            cp .env.example .env 2>/dev/null || touch .env
+          fi
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -49,6 +55,12 @@ jobs:
         with:
           channel: 'stable'
           cache: true
+
+      - name: Prepare environment configuration
+        run: |
+          if [ ! -f .env ]; then
+            cp .env.example .env 2>/dev/null || touch .env
+          fi
 
       - name: Install dependencies
         run: flutter pub get

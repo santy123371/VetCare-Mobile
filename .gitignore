@@ -80,3 +80,5 @@ app.*.map.json
 /install.ps1
 *.bat
 *.ps1
+build-ios/
+*.zip
